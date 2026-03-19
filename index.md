@@ -23,7 +23,8 @@ ai-note/
   - [异步任务监控方案](openclaw/best-practices/sessions-spawn-async-monitoring.md)
   - [多代理 Telegram 交互](openclaw/best-practices/multi-agent-telegram.md)
   - [OpenClaw 配置最佳实践](openclaw/best-practices/openclaw-configuration-best-practices.md)
-  - [Discord Bot 配置最佳实践](openclaw/best-practices/discord-bot-configuration-best-practices.md) ⭐ NEW
+  - [Discord Bot 配置最佳实践](openclaw/best-practices/discord-bot-configuration-best-practices.md)
+  - [Discord 多 Bot 管理 - 主 Agent 方案](openclaw/best-practices/discord-multi-bot-management.md) ⭐ NEW
 
 ### 其他领域
 - *(待添加)*
