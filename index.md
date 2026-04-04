@@ -23,8 +23,9 @@ ai-note/
   - [异步任务监控方案](openclaw/best-practices/sessions-spawn-async-monitoring.md)
   - [多代理 Telegram 交互](openclaw/best-practices/multi-agent-telegram.md)
   - [OpenClaw 配置最佳实践](openclaw/best-practices/openclaw-configuration-best-practices.md)
+  - [Memory 插件对比指南](openclaw/best-practices/openclaw-memory-plugins-guide.md) ⭐ NEW
   - [Discord Bot 配置最佳实践](openclaw/best-practices/discord-bot-configuration-best-practices.md)
-  - [Discord 多 Bot 管理 - 主 Agent 方案](openclaw/best-practices/discord-multi-bot-management.md) ⭐ NEW
+  - [Discord 多 Bot 管理 - 主 Agent 方案](openclaw/best-practices/discord-multi-bot-management.md)
 
 ### 其他领域
 - *(待添加)*
@@ -46,4 +47,4 @@ ai-note/
 4. 确保文档 AI 友好（结构化、可解析）
 
 ---
-**索引最后更新**: 2026-03-19
+**索引最后更新**: 2026-04-04
