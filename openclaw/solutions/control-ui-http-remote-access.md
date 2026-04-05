@@ -87,7 +87,35 @@ control ui requires device identity (use HTTPS or localhost secure context)
 
 ---
 
-### 方案 4: Nginx 反向代理 + HTTPS（生产环境推荐）
+### 方案 4: frp + IP 白名单（内网穿透方案）
+
+使用 frp 进行端口转发，配合安全组/IP 白名单实现访问控制：
+
+```ini
+# frpc.ini
+[openclaw-control-ui]
+type = tcp
+local_ip = 127.0.0.1
+local_port = 18789
+remote_port = 18789
+```
+
+**安全组配置**：
+- 只允许固定 IP 访问远程端口
+- 云服务商安全组 / 防火墙规则
+
+**优点**：
+- 无需 HTTPS 证书配置
+- IP 白名单提供访问控制
+- 适合固定 IP 的团队/个人使用
+
+**缺点**：
+- HTTP 无加密，流量可被监听
+- IP 变化时需要更新白名单
+
+---
+
+### 方案 5: Nginx 反向代理 + HTTPS（生产环境推荐）
 
 使用 Nginx/Caddy 等反向代理配置 HTTPS 证书：
 
@@ -119,7 +147,8 @@ server {
 | 配置项 | 作用范围 | 安全等级 |
 |--------|----------|----------|
 | `allowInsecureAuth` | 仅 localhost | 低风险 |
-| `dangerouslyDisableDeviceAuth` | 所有来源 | **高风险** |
+| `dangerouslyDisableDeviceAuth` | 所有来源 | **高风险**（需配合 IP 白名单）|
+| frp + IP 白名单 | 公网（限 IP）| 中安全（HTTP 无加密）|
 | Tailscale Serve | Tailnet 内 | 高安全 |
 | Tailscale Funnel | 公网 | 中安全（需密码）|
 | Nginx + HTTPS | 公网 | 高安全 |
@@ -166,6 +195,7 @@ server {
 | 场景 | 推荐方案 |
 |------|----------|
 | 本地开发测试 | `dangerouslyDisableDeviceAuth` + Token |
+| 内网穿透 + 固定 IP | frp + IP 白名单 + Token |
 | 内网团队使用 | Tailscale Serve |
 | 公网生产环境 | Nginx + HTTPS + Token |
 | 公网快速部署 | Tailscale Funnel + Password |
