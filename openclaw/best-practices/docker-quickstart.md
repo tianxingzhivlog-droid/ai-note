@@ -2,6 +2,7 @@
 
 **版本**: 2026.4.2  
 **创建时间**: 2026-04-06  
+**更新时间**: 2026-04-06 (修正挂载目录)  
 **标签**: docker, deployment, quickstart, configuration
 
 ---
@@ -10,6 +11,8 @@
 
 本文档记录使用 Docker 快速部署 OpenClaw 容器的完整流程，包括关键配置步骤和常见问题解决方案。
 
+**⚠️ 重要**：挂载目录必须是 `/home/node/.openclaw`（不是 `/root/.openclaw`）！
+
 ---
 
 ## 🚀 快速启动
@@ -17,11 +20,11 @@
 ### 方案一：Docker Run（推荐）
 
 ```bash
-# 一键启动命令
+# 一键启动命令（注意挂载目录！）
 docker run -d \
   --name stock \
   -p 9999:18789 \
-  -v ~/.openclaw-stock:/root/.openclaw \
+  -v ~/.openclaw-stock:/home/node/.openclaw \
   -e OPENCLAW_GATEWAY_PORT=18789 \
   ghcr.io/openclaw/openclaw:2026.4.2
 ```
@@ -37,7 +40,7 @@ services:
     ports:
       - "9999:18789"
     volumes:
-      - ~/.openclaw-stock:/root/.openclaw
+      - ~/.openclaw-stock:/home/node/.openclaw
     environment:
       - OPENCLAW_GATEWAY_PORT=18789
     restart: unless-stopped
@@ -47,7 +50,21 @@ services:
 
 ## ⚠️ 关键配置（必须执行）
 
-### 步骤 1: 配置绑定模式
+### 步骤 1: ⚠️ 正确的挂载目录（关键！）
+
+**容器内路径**: `/home/node/.openclaw`（不是 `/root/.openclaw`）
+
+```bash
+# ❌ 错误：挂载到 /root/.openclaw
+docker run -v ~/.openclaw-stock:/root/.openclaw ...
+
+# ✅ 正确：挂载到 /home/node/.openclaw
+docker run -v ~/.openclaw-stock:/home/node/.openclaw ...
+```
+
+**原因**：容器以 `node` 用户运行，数据目录在 `/home/node/.openclaw`，挂载错误会导致数据不同步！
+
+### 步骤 2: 配置绑定模式
 
 ```bash
 docker exec stock node dist/index.js config set gateway.bind "lan"
@@ -55,7 +72,7 @@ docker exec stock node dist/index.js config set gateway.bind "lan"
 
 **原因**: 默认绑定到 `127.0.0.1`（容器内部），设置为 `lan` 后绑定到 `0.0.0.0`，允许宿主机访问。
 
-### 步骤 2: 配置允许的源地址
+### 步骤 3: 配置允许的源地址
 
 ```bash
 docker exec stock node dist/index.js config set gateway.controlUi.allowedOrigins '["http://localhost:9999","http://127.0.0.1:9999"]'
@@ -63,13 +80,40 @@ docker exec stock node dist/index.js config set gateway.controlUi.allowedOrigins
 
 **原因**: 防止浏览器访问时报 "origin not allowed" 错误。
 
-### 步骤 3: 设置认证 Token
+### 步骤 4: 设置认证 Token
 
 ```bash
 docker exec stock node dist/index.js config set gateway.auth.token "hope"
 ```
 
-### 步骤 4: 重启容器
+### 步骤 5: 配置模型 Provider（百炼 Qwen）
+
+```bash
+docker exec stock node dist/index.js config set models.providers.bailian '{
+  "baseUrl": "https://coding.dashscope.aliyuncs.com/v1",
+  "apiKey": "sk-sp-YOUR_API_KEY",
+  "api": "openai-completions",
+  "models": [
+    {
+      "id": "qwen3.5-plus",
+      "name": "qwen3.5-plus",
+      "api": "openai-completions",
+      "reasoning": false,
+      "input": ["text", "image"],
+      "contextWindow": 1000000,
+      "maxTokens": 65536
+    }
+  ]
+}'
+```
+
+### 步骤 6: 设置默认模型
+
+```bash
+docker exec stock node dist/index.js config set agents.defaults.model "bailian/qwen3.5-plus"
+```
+
+### 步骤 7: 重启容器
 
 ```bash
 docker restart stock
@@ -83,6 +127,29 @@ docker restart stock
 
 ```bash
 docker ps | grep stock
+```
+
+### 检查挂载配置
+
+```bash
+# 查看挂载配置
+docker inspect stock | grep -A 5 "Mounts"
+
+# 预期输出：
+# "Source": "/Users/hope/.openclaw-stock"
+# "Destination": "/home/node/.openclaw"
+```
+
+### 验证数据同步
+
+```bash
+# 查看容器内数据
+docker exec stock ls -la /home/node/.openclaw/
+
+# 查看宿主机数据
+ls -la ~/.openclaw-stock/
+
+# 两者应该包含相同的文件
 ```
 
 ### 检查端口映射
@@ -100,7 +167,7 @@ docker logs stock --tail 20
 **正确输出示例**:
 ```
 listening on ws://0.0.0.0:18789
-Gateway is binding to a non-loopback address
+agent model: bailian/qwen3.5-plus
 ```
 
 ### 测试连接
@@ -120,6 +187,7 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:9999/
 | Token | hope |
 | 容器名称 | stock |
 | 数据卷 | ~/.openclaw-stock |
+| 容器内路径 | `/home/node/.openclaw` ⚠️ |
 | 内部端口 | 18789 |
 | 外部端口 | 9999 |
 
@@ -137,7 +205,25 @@ docker exec stock node dist/index.js config set gateway.controlUi.allowedOrigins
 docker restart stock
 ```
 
-### 2. "pairing required" 错误
+### 2. 挂载目录错误导致数据不同步
+
+**症状**: `~/.openclaw-stock` 目录是空的，或者容器重启后配置丢失
+
+**检查**:
+```bash
+# 查看挂载配置
+docker inspect stock | grep -A 5 "Mounts"
+
+# 查看容器内实际数据目录
+docker exec stock ls -la /home/node/.openclaw/
+
+# 查看宿主机目录
+ls -la ~/.openclaw-stock/
+```
+
+**解决**: 确保挂载到 `/home/node/.openclaw` 而不是 `/root/.openclaw`
+
+### 3. "pairing required" 错误
 
 **症状**: 登录后仍提示需要配对
 
@@ -150,7 +236,7 @@ docker exec stock node dist/index.js devices list
 docker exec stock node dist/index.js devices approve <request-id>
 ```
 
-### 3. 无法访问 9999 端口
+### 4. 无法访问 9999 端口
 
 **检查步骤**:
 ```bash
@@ -165,7 +251,7 @@ docker exec stock node dist/index.js config get gateway.bind
 # 应返回 "lan"
 ```
 
-### 4. 容器启动后自动退出
+### 5. 容器启动后自动退出
 
 **检查日志**:
 ```bash
@@ -186,39 +272,66 @@ docker logs stock --tail 50
 ```bash
 #!/bin/bash
 
-# 1. 创建并启动容器
+echo "🚀 创建并启动容器..."
 docker run -d \
   --name stock \
   -p 9999:18789 \
-  -v ~/.openclaw-stock:/root/.openclaw \
+  -v ~/.openclaw-stock:/home/node/.openclaw \
   -e OPENCLAW_GATEWAY_PORT=18789 \
   ghcr.io/openclaw/openclaw:2026.4.2
 
 echo "⏳ 等待容器初始化..."
 sleep 5
 
-# 2. 配置绑定模式
+echo "⚙️ 配置绑定模式..."
 docker exec stock node dist/index.js config set gateway.bind "lan"
 
-# 3. 配置允许的源
+echo "⚙️ 配置允许的源..."
 docker exec stock node dist/index.js config set gateway.controlUi.allowedOrigins '["http://localhost:9999","http://127.0.0.1:9999"]'
 
-# 4. 设置 Token
+echo "⚙️ 设置 Token..."
 docker exec stock node dist/index.js config set gateway.auth.token "hope"
 
-# 5. 重启容器
+echo "⚙️ 配置百炼 Provider..."
+docker exec stock node dist/index.js config set models.providers.bailian '{
+  "baseUrl": "https://coding.dashscope.aliyuncs.com/v1",
+  "apiKey": "sk-sp-YOUR_API_KEY",
+  "api": "openai-completions",
+  "models": [
+    {
+      "id": "qwen3.5-plus",
+      "name": "qwen3.5-plus",
+      "api": "openai-completions",
+      "reasoning": false,
+      "input": ["text", "image"],
+      "contextWindow": 1000000,
+      "maxTokens": 65536
+    }
+  ]
+}'
+
+echo "⚙️ 设置默认模型..."
+docker exec stock node dist/index.js config set agents.defaults.model "bailian/qwen3.5-plus"
+
+echo "🔄 重启容器..."
 docker restart stock
 
 echo "⏳ 等待容器重启..."
 sleep 5
 
-# 6. 验证
+echo ""
 echo "📊 容器状态:"
 docker ps | grep stock
 
 echo ""
+echo "📁 验证挂载:"
+ls -la ~/.openclaw-stock/
+
+echo ""
 echo "🔗 访问地址：http://localhost:9999/"
 echo "🔑 Token: hope"
+echo ""
+echo "✅ 配置完成！"
 ```
 
 ---
@@ -228,6 +341,7 @@ echo "🔑 Token: hope"
 - **官方文档**: https://docs.openclaw.ai/install/docker
 - **GitHub 镜像**: https://github.com/openclaw/openclaw/pkgs/container/openclaw
 - **社区**: https://discord.com/invite/clawd
+- **AI-Note 文档**: https://github.com/Linux2010/ai-note/tree/main/openclaw/best-practices
 
 ---
 
@@ -235,7 +349,8 @@ echo "🔑 Token: hope"
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
-| 2026-04-06 | 2026.4.2 | 初始版本，记录完整部署流程 |
+| 2026-04-06 | 1.1 | 修正挂载目录为 `/home/node/.openclaw` |
+| 2026-04-06 | 1.0 | 初始版本，记录完整部署流程 |
 
 ---
 
