@@ -27,6 +27,9 @@ ai-note/
   - [Memory 插件对比指南](openclaw/best-practices/openclaw-memory-plugins-guide.md) ⭐ NEW
   - [Discord Bot 配置最佳实践](openclaw/best-practices/discord-bot-configuration-best-practices.md)
   - [Discord 多 Bot 管理 - 主 Agent 方案](openclaw/best-practices/discord-multi-bot-management.md)
+  - [OpenClaw Docker 快速部署指南](openclaw/best-practices/docker-quickstart.md) ⭐ NEW
+  - [百炼 Qwen 模型配置指南](openclaw/best-practices/bailian-model-configuration.md) ⭐ NEW
+  - [百炼平台大模型配置最佳实践](openclaw/best-practices/bailian-models-best-practices.md) ⭐ NEW
 
 ### 其他领域
 - *(待添加)*
@@ -48,4 +51,4 @@ ai-note/
 4. 确保文档 AI 友好（结构化、可解析）
 
 ---
-**索引最后更新**: 2026-04-04
+**索引最后更新**: 2026-04-06
