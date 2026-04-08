@@ -265,6 +265,111 @@ docker logs stock --tail 50
 
 ---
 
+## 🔧 高级技巧
+
+### 技巧 1：禁用 Docker 全局代理
+
+**问题**: Docker Desktop 设置了全局代理（`~/.docker/config.json` 中 `proxies.default`），新容器自动继承代理环境变量，但代理不可用会导致网络失败。
+
+**症状**:
+```
+[telegram] deleteWebhook failed: Network request for 'deleteWebhook' failed!
+```
+
+**解决方案**: 创建容器时显式禁用代理
+
+```bash
+docker run -d --name stock \
+  -p 9999:18789 \
+  -v ~/.openclaw-stock:/home/node/.openclaw \
+  -e OPENCLAW_GATEWAY_PORT=18789 \
+  -e HTTP_PROXY= \
+  -e HTTPS_PROXY= \
+  -e http_proxy= \
+  -e https_proxy= \
+  -e NO_PROXY= \
+  -e no_proxy= \
+  ghcr.io/openclaw/openclaw:latest
+```
+
+**验证**:
+```bash
+docker exec stock curl -s https://api.telegram.org
+# 应返回 JSON 响应
+```
+
+---
+
+### 技巧 2：快速安装 Playwright（容器复制法）
+
+**场景**: 容器内安装 Playwright + Chromium 很慢（网络问题、代理问题）
+
+**解决方案**: 从已安装的容器复制文件
+
+```bash
+# 源容器（已安装 Playwright）
+SOURCE=openclaw-trump
+TARGET=openclaw-anna
+
+# 1. 打包 Python 包
+docker exec $SOURCE bash -c "
+  cd ~/.local/lib/python3.11/site-packages
+  tar czf /tmp/pw.tar.gz playwright pyee greenlet
+"
+
+# 2. 打包 Chromium
+docker exec $SOURCE bash -c "
+  cd ~/.cache && tar czf /tmp/chromium.tar.gz ms-playwright
+"
+
+# 3. 复制到目标容器
+docker cp $SOURCE:/tmp/pw.tar.gz /tmp/
+docker cp $SOURCE:/tmp/chromium.tar.gz /tmp/
+docker cp /tmp/pw.tar.gz $TARGET:/tmp/
+docker cp /tmp/chromium.tar.gz $TARGET:/tmp/
+
+# 4. 解压
+docker exec $TARGET bash -c "
+  cd ~/.local/lib/python3.11/site-packages
+  tar xzf /tmp/pw.tar.gz
+"
+docker exec $TARGET bash -c "
+  mkdir -p ~/.cache && cd ~/.cache
+  tar xzf /tmp/chromium.tar.gz
+"
+
+# 5. 安装系统依赖（需要 root）
+docker exec -u root $TARGET bash -c "
+  apt-get update -qq
+  apt-get install -y libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+    libdbus-1-3 libcups2 libxkbcommon0 libatspi2.0-0 libxcomposite1 \
+    libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2
+"
+```
+
+**验证**:
+```bash
+docker exec $TARGET python -c "from playwright.sync_api import sync_playwright; print('OK')"
+```
+
+---
+
+### 技巧 3：多实例端口规划
+
+| 实例 | Gateway | 浏览器控制 | 用途 |
+|------|---------|-----------|------|
+| main | 18789 | 18791 | 主实例 |
+| trump | 9999 | 9998 | Telegram/Discord Bot |
+| anna | 10000 | 9996 | 第二 Bot |
+
+**端口映射**:
+```bash
+-p 10000:18789  # Gateway（对外访问）
+-p 9996:18791   # 浏览器控制（Playwright）
+```
+
+---
+
 ## 📝 完整初始化脚本
 
 复制以下脚本一键完成所有配置：
@@ -349,6 +454,7 @@ echo "✅ 配置完成！"
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-04-08 | 1.2 | 新增高级技巧：禁用代理、Playwright 复制法、多实例端口规划 |
 | 2026-04-06 | 1.1 | 修正挂载目录为 `/home/node/.openclaw` |
 | 2026-04-06 | 1.0 | 初始版本，记录完整部署流程 |
 
